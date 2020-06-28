@@ -13,8 +13,13 @@
 
 import argparse
 import json
+import logging
 from socket import socket, AF_INET, SOCK_STREAM
 from datetime import datetime
+
+from lesson04.log import client_log_config
+
+LOG = logging.getLogger('app.client')
 
 PARSER = argparse.ArgumentParser()
 
@@ -36,7 +41,12 @@ for message in MESSAGES:
     s.connect((IP, int(PORT)))
 
     message['time'] = datetime.now().timestamp()
-    s.send(json.dumps(message).encode('utf-8'))
+
+    try:
+        s.send(json.dumps(message).encode('utf-8'))
+    except Exception as e:
+        LOG.error(f'An error occurred : {str(e)}')
+
     data = s.recv(1024)
 
     s.close()
@@ -44,8 +54,7 @@ for message in MESSAGES:
     if data_answ['response'] == 200:
         print(data_answ['message'])
     else:
-        print('что-то пошло не так:(')
-
+        LOG.error('что-то пошло не так:(')
 
 # Пример запуска клиета: client.py --a=127.0.0.1 --p=9001
 # --------------
