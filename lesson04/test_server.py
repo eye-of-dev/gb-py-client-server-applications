@@ -35,12 +35,14 @@ class TestServer(unittest.TestCase):
         data_answ = json.loads(data)
         self.assertEqual(500, data_answ['response'])
 
-    def test_answer_params(self):
+    def test_answer_params_response(self):
         self.s.send(json.dumps(self.data_answ_success).encode('utf-8'))
         data = self.s.recv(1024)
         data_answ = json.loads(data)
         self.assertIn('response', data_answ.keys())
 
-
-if __name__ == '__main__':
-    unittest.main()
+    def test_answer_params_time(self):
+        self.s.send(json.dumps(self.data_answ_success).encode('utf-8'))
+        data = self.s.recv(1024)
+        data_answ = json.loads(data)
+        self.assertIn('time', data_answ.keys())

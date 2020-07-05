@@ -7,7 +7,3 @@ class TestClient(unittest.TestCase):
 
     def test_message_correct(self):
         self.assertIsInstance(self.message, dict)
-
-
-if __name__ == '__main__':
-    unittest.main()

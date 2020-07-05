@@ -12,8 +12,13 @@
 
 import argparse
 import json
+import logging
 from socket import socket, AF_INET, SOCK_STREAM
 from datetime import datetime
+
+from lesson04.log import server_log_config
+
+LOG = logging.getLogger('app.server')
 
 PARSER = argparse.ArgumentParser()
 
@@ -29,30 +34,34 @@ SOCS = socket(AF_INET, SOCK_STREAM)
 SOCS.bind((IP, PORT))
 SOCS.listen(True)
 
-while True:
-    CONN, ADDR = SOCS.accept()
-    DATA = CONN.recv(1024)
+try:
+    while True:
+        CONN, ADDR = SOCS.accept()
+        DATA = CONN.recv(1024)
 
-    # примитивный лог подключений:)
-    print('Подключился клиент: ', ADDR)
+        LOG.info(f'Подключился клиент: {ADDR}')
 
-    DATA_ANSW = {'time': datetime.now().timestamp()}
+        DATA_ANSW = {'time': datetime.now().timestamp()}
 
-    DATA_MSG = json.loads(DATA)
-    if DATA_MSG['action'] == 'message':
-        DATA_ANSW['action'] = 'message'
-        DATA_ANSW['message'] = 'Привет клиент. Все хорошо:)'
-        DATA_ANSW['response'] = 200
-    elif DATA_MSG['action'] == 'status':
-        DATA_ANSW['action'] = 'status'
-        DATA_ANSW['message'] = 'OK'
-        DATA_ANSW['response'] = 200
-    else:
-        DATA_ANSW['action'] = 'error'
-        DATA_ANSW['response'] = 500
+        DATA_MSG = json.loads(DATA)
+        if DATA_MSG['action'] == 'message':
+            DATA_ANSW['action'] = 'message'
+            DATA_ANSW['message'] = 'Привет клиент. Все хорошо:)'
+            DATA_ANSW['response'] = 200
+        elif DATA_MSG['action'] == 'status':
+            DATA_ANSW['action'] = 'status'
+            DATA_ANSW['message'] = 'OK'
+            DATA_ANSW['response'] = 200
+        else:
+            DATA_ANSW['action'] = 'error'
+            DATA_ANSW['response'] = 500
 
-    CONN.send(json.dumps(DATA_ANSW).encode('utf-8'))
-    CONN.close()
+        CONN.send(json.dumps(DATA_ANSW).encode('utf-8'))
+        CONN.close()
+except Exception as e:
+    LOG.error(f'An error occurred : {str(e)}')
+
+
 
 # Пример запуска сервера: server.py --a=127.0.0.1 --p=9001
 # ------------------
