@@ -61,8 +61,6 @@ try:
 except Exception as e:
     LOG.error(f'An error occurred : {str(e)}')
 
-
-
 # Пример запуска сервера: server.py --a=127.0.0.1 --p=9001
 # ------------------
 # Подключился клиент:  ('127.0.0.1', 47034)

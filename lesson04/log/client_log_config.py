@@ -17,4 +17,4 @@ FILE_HANDLER = logging.FileHandler('client.log', encoding='utf-8')
 FILE_HANDLER.setFormatter(FORMATTER)
 
 logger.addHandler(FILE_HANDLER)
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.INFO)

@@ -17,6 +17,7 @@ import logging
 from socket import socket, AF_INET, SOCK_STREAM
 from datetime import datetime
 
+from lesson04.decorators import log
 from lesson04.log import client_log_config
 
 LOG = logging.getLogger('app.client')
@@ -31,16 +32,30 @@ ARGS = PARSER.parse_args()
 IP = ARGS.a
 PORT = int(ARGS.p)
 
-DATA_MSG1 = {'action': 'status'}
-DATA_MSG2 = {'action': 'message', 'message': 'Привет сервер. Как дела?'}
-DATA_MSG3 = {'action': 'error'}
+
+@log
+def create_message(action, message=None):
+    """
+    Create message for server
+    :param action: Action
+    :param message: Message
+    :return: Set
+    """
+    return {
+        'action': action,
+        'message': message,
+        'time': datetime.now().timestamp()
+    }
+
+
+DATA_MSG1 = create_message('status')
+DATA_MSG2 = create_message('message', 'Привет сервер. Как дела?')
+DATA_MSG3 = create_message('error')
 
 MESSAGES = [DATA_MSG1, DATA_MSG2, DATA_MSG3]
 for message in MESSAGES:
     s = socket(AF_INET, SOCK_STREAM)
     s.connect((IP, int(PORT)))
-
-    message['time'] = datetime.now().timestamp()
 
     try:
         s.send(json.dumps(message).encode('utf-8'))
@@ -58,6 +73,11 @@ for message in MESSAGES:
 
 # Пример запуска клиета: client.py --a=127.0.0.1 --p=9001
 # --------------
-# OK
-# Привет клиент. Все хорошо:)
-# что-то пошло не так:(
+# 2020-07-05 14:49:01,885 - ERROR app.client что-то пошло не так:(
+# 2020-07-05 15:15:27,507 - INFO app.client filename: client.py func name: create_message and func args: ('status',), {}
+# 2020-07-05 15:15:27,507 - INFO app.client filename: client.py func name: create_message and func args:
+# ('message', 'Привет сервер. Как дела?'), {}
+# 2020-07-05 15:15:27,507 - INFO app.client filename: client.py func name: create_message and func args: ('error',), {}
+
+# Примечание:
+# Сообщение INFO - логирование из декоратора. Логирует файл откуда была вызван декоратор, имя функции, параметры функции
