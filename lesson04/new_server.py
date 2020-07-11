@@ -14,7 +14,6 @@ import argparse
 import json
 import logging
 import select
-import time
 from socket import socket, AF_INET, SOCK_STREAM
 
 from lesson04.log import server_log_config
@@ -54,6 +53,8 @@ def start():
     clients = []
     messages = []
 
+    users = dict()
+
     while True:
 
         try:
@@ -77,30 +78,43 @@ def start():
         if recv_data_lst:
             for client_with_message in recv_data_lst:
                 try:
+
+                    # @todo вывести в отдельный метод
                     encoded_response = client_with_message.recv(1024)
                     json_response = encoded_response.decode('utf-8')
                     response = json.loads(json_response)
 
                     if 'action' in response and response['action'] == 'presence':
+
+                        # @todo вывести в отдельный метод
+                        users[response['user']['account_name']] = client_with_message
                         client_with_message.send(json.dumps({'response': 200}).encode('utf-8'))
+
                     elif 'action' in response and response['action'] == 'message':
-                        messages.append((response['user']['account_name'], response['message']))
+                        messages.append(response)
                     else:
                         client_with_message.send(json.dumps({'response': 400, 'error': 'Bad Request'}).encode('utf-8'))
                 except:
+
+                    # @todo вывести в отдельный метод
                     LOG.info(f'Клиент {client_with_message.getpeername()} отключился от сервера.')
                     clients.remove(client_with_message)
+                    users[response['user']['account_name']].close()
+                    del users[response['user']['account_name']]
 
-        if messages and send_data_lst:
-            message = {'action': 'message', 'time': time.time(), 'sender': messages[0][0], 'message': messages[0][1]}
-            for waiting_client in send_data_lst:
-                try:
-                    waiting_client.send(json.dumps(message).encode('utf-8'))
-                    del messages[0]
-                except:
-                    LOG.info(f'Клиент {waiting_client.getpeername()} отключился от сервера.')
-                    clients.remove(waiting_client)
+        for message in messages:
+            try:
+                if message['destination'] in users and users[message['destination']] in send_data_lst:
+                    # @todo сделать читабельнее
+                    users[message['destination']].send(json.dumps(message).encode('utf-8'))
+            except:
 
+                # @todo вывести в отдельный метод
+                LOG.info(f'Клиент {message["destination"]} отключился от сервера.')
+                clients.remove(users[message['destination']])
+                del users[message['destination']]
+
+        messages.clear()
 
 if __name__ == '__main__':
     start()
