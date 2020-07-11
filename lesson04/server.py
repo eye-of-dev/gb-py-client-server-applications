@@ -13,6 +13,8 @@
 import argparse
 import json
 import logging
+import select
+import time
 from socket import socket, AF_INET, SOCK_STREAM
 from datetime import datetime
 
@@ -20,46 +22,89 @@ from lesson04.log import server_log_config
 
 LOG = logging.getLogger('app.server')
 
-PARSER = argparse.ArgumentParser()
 
-PARSER.add_argument('--a', help='IP-адрес для прослушивания', default='')
-PARSER.add_argument('--p', help='TCP-порт для прослушивания', default=7777)
+def parse_args():
+    """
+    Парсер аргументов коммандной строки
+    :return: address and post
+    """
+    PARSER = argparse.ArgumentParser()
 
-ARGS = PARSER.parse_args()
+    PARSER.add_argument('--a', help='IP-адрес для прослушивания', default='')
+    PARSER.add_argument('--p', help='TCP-порт для прослушивания', default=7777)
 
-IP = ARGS.a
-PORT = int(ARGS.p)
+    ARGS = PARSER.parse_args()
 
-SOCS = socket(AF_INET, SOCK_STREAM)
-SOCS.bind((IP, PORT))
-SOCS.listen(True)
+    return ARGS.a, int(ARGS.p)
 
-try:
+
+def start():
+    """
+    Запуск сервера и обработка сообщений
+    :return: None
+    """
+    print('---===Сервер запущен===---')
+
+    IP, PORT = parse_args()
+
+    SOCS = socket(AF_INET, SOCK_STREAM)
+    SOCS.bind((IP, PORT))
+    SOCS.listen(5)
+    SOCS.settimeout(0.2)
+
+    clients = []
+    messages = []
+
     while True:
-        CONN, ADDR = SOCS.accept()
-        DATA = CONN.recv(1024)
 
-        LOG.info(f'Подключился клиент: {ADDR}')
-
-        DATA_ANSW = {'time': datetime.now().timestamp()}
-
-        DATA_MSG = json.loads(DATA)
-        if DATA_MSG['action'] == 'message':
-            DATA_ANSW['action'] = 'message'
-            DATA_ANSW['message'] = 'Привет клиент. Все хорошо:)'
-            DATA_ANSW['response'] = 200
-        elif DATA_MSG['action'] == 'status':
-            DATA_ANSW['action'] = 'status'
-            DATA_ANSW['message'] = 'OK'
-            DATA_ANSW['response'] = 200
+        try:
+            CONN, ADDR = SOCS.accept()
+        except OSError:
+            pass
         else:
-            DATA_ANSW['action'] = 'error'
-            DATA_ANSW['response'] = 500
+            LOG.info(f'Получен запрос на соединение от: {ADDR}')
+            clients.append(CONN)
 
-        CONN.send(json.dumps(DATA_ANSW).encode('utf-8'))
-        CONN.close()
-except Exception as e:
-    LOG.error(f'An error occurred : {str(e)}')
+        recv_data_lst = []
+        send_data_lst = []
+        err_lst = []
+
+        try:
+            if clients:
+                recv_data_lst, send_data_lst, err_lst = select.select(clients, clients, [], 0)
+        except OSError:
+            pass
+
+        if recv_data_lst:
+            for client_with_message in recv_data_lst:
+                try:
+                    encoded_response = client_with_message.recv(1024)
+                    json_response = encoded_response.decode('utf-8')
+                    response = json.loads(json_response)
+
+                    if 'action' in response and response['action'] == 'presence':
+                        client_with_message.send(json.dumps({'response': 200}).encode('utf-8'))
+                    elif 'action' in response and response['action'] == 'message':
+                        messages.append((response['user']['account_name'], response['message']))
+                    else:
+                        client_with_message.send(json.dumps({'response': 400, 'error': 'Bad Request'}).encode('utf-8'))
+                except:
+                    LOG.info(f'Клиент {client_with_message.getpeername()} отключился от сервера.')
+                    clients.remove(client_with_message)
+
+        if messages and send_data_lst:
+            message = {'action': 'message', 'time': time.time(), 'sender': messages[0][0], 'message': messages[0][1]}
+            for waiting_client in send_data_lst:
+                try:
+                    waiting_client.send(json.dumps(message).encode('utf-8'))
+                    del messages[0]
+                except:
+                    LOG.info(f'Клиент {waiting_client.getpeername()} отключился от сервера.')
+                    clients.remove(waiting_client)
+
+
+if __name__ == '__main__':
+    start()
 
 # Пример запуска сервера: server.py --a=127.0.0.1 --p=9001
 # ------------------
