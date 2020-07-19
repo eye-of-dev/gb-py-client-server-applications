@@ -15,6 +15,7 @@ import argparse
 import json
 import logging
 import sys
+import threading
 from socket import socket, AF_INET, SOCK_STREAM
 import time
 
@@ -40,7 +41,7 @@ def parse_args():
 
 
 @log
-def create_message(action, account_name='Guest'):
+def create_message(action, account_name='Listener'):
     """
     Create message for server
     :param action: Action
@@ -51,6 +52,7 @@ def create_message(action, account_name='Guest'):
     return {
         'action': action,
         'message': message,
+        'destination': 'Send',
         'time': time.time(),
         'user': {
             'account_name': account_name
@@ -58,7 +60,7 @@ def create_message(action, account_name='Guest'):
     }
 
 
-def create_presence(account_name='Guest'):
+def create_presence(account_name='Listener'):
     """
     create_presence
     :param account_name:
@@ -71,6 +73,33 @@ def create_presence(account_name='Guest'):
             'account_name': account_name
         }
     }
+
+
+def receive_message(socs):
+    """
+    Обработчик сообщений с сервера
+    :param socs:
+    :return: None
+    """
+    while True:
+        encoded_response = socs.recv(1024)
+        json_response = encoded_response.decode('utf-8')
+        answer = json.loads(json_response)
+
+        SENDER = answer['user']['account_name']
+        MESSAGE = answer['message']
+        print(f'Получено сообщение от пользователя {SENDER}:\n{MESSAGE}')
+
+
+def send_message(socs):
+    """
+    Отправка сообщений на сервер
+    :param socs:
+    :return: None
+    """
+    while True:
+        DATA_MSG = create_message('message')
+        socs.send(json.dumps(DATA_MSG).encode('utf-8'))
 
 
 def start():
@@ -96,14 +125,19 @@ def start():
         LOG.error(f'Не удалось подключиться к серверу {IP}:{PORT}')
         sys.exit(1)
     else:
-        while True:
-            encoded_response = SOCS.recv(1024)
-            json_response = encoded_response.decode('utf-8')
-            answer = json.loads(json_response)
+        receiver = threading.Thread(target=receive_message, args=(SOCS,))
+        receiver.daemon = True
+        receiver.start()
 
-            SENDER = answer['sender']
-            MESSAGE = answer['message']
-            print(f'Получено сообщение от пользователя {SENDER}:\n{MESSAGE}')
+        sender = threading.Thread(target=send_message, args=(SOCS,))
+        sender.daemon = True
+        sender.start()
+
+        while True:
+            time.sleep(1)
+            if receiver.is_alive() and sender.is_alive():
+                continue
+            break
 
 
 if __name__ == '__main__':
